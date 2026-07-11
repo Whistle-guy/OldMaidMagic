@@ -1,0 +1,1172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Joker with Magic ― 闇の魔導ババ抜き</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg0:#040207; --bg1:#0a0511; --crimson:#c0142f; --crimson-glow:#ff2b4a;
+    --violet:#7b2ff7; --violet-glow:#b06bff; --gold:#e9c46a; --gold-deep:#a9832f; --ash:#8a7f95;
+    --ink:#e8def5; --danger:#ff3b5c;
+    --serif:"Yu Mincho","Hiragino Mincho ProN","YuMincho","Georgia","Times New Roman",serif;
+    --panel:linear-gradient(178deg,#1c1330 0%,#130b21 45%,#0c0715 100%);
+    --edge-gold:rgba(233,196,106,.5);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;}
+  body{
+    font-family:"Yu Gothic","Hiragino Kaku Gothic ProN","Segoe UI",sans-serif;color:var(--ink);
+    background:
+      radial-gradient(130% 120% at 50% 42%, transparent 52%, rgba(0,0,0,.6) 100%),
+      radial-gradient(1200px 700px at 50% -10%, #22143a 0%, rgba(26,15,43,0) 60%),
+      radial-gradient(900px 600px at 15% 110%, #350a1a 0%, rgba(42,7,19,0) 55%),
+      radial-gradient(900px 600px at 90% 100%, #131636 0%, rgba(16,18,46,0) 55%),
+      linear-gradient(180deg,var(--bg1),var(--bg0));
+    background-attachment:fixed;
+    overflow-x:hidden;min-height:100vh;
+    -webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;
+  }
+  /* きめ細かなグレイン（重厚な質感） */
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  .card{-webkit-touch-callout:none;}
+  .fog{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;mix-blend-mode:screen;
+    background:radial-gradient(600px 300px at 20% 30%, rgba(123,47,247,.10), transparent 70%),
+      radial-gradient(700px 350px at 80% 60%, rgba(192,20,47,.10), transparent 70%);
+    animation:drift 18s ease-in-out infinite alternate;}
+  @keyframes drift{from{transform:translate(0,0)}to{transform:translate(-30px,20px) scale(1.08)}}
+
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:18px 16px 60px;}
+  .screen{display:none;} .screen.active{display:block;}
+
+  /* ===== タイトル ===== */
+  #titleScreen.active{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:80vh;}
+  .logo{font-family:var(--serif);font-size:clamp(30px,7vw,64px);margin:0;letter-spacing:.16em;font-weight:800;
+    background:linear-gradient(90deg,var(--crimson-glow),var(--violet-glow),var(--gold));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 3px 10px rgba(0,0,0,.7));
+    text-shadow:0 0 40px rgba(176,107,255,.3);animation:flicker 4s ease-in-out infinite;}
+  @keyframes flicker{0%,100%{filter:brightness(1)}48%{filter:brightness(1)}50%{filter:brightness(1.4)}52%{filter:brightness(.85)}54%{filter:brightness(1.2)}}
+  .subt{color:var(--ash);letter-spacing:.5em;margin:6px 0 34px;font-size:13px;}
+  .menu{display:flex;flex-direction:column;gap:12px;width:min(360px,90vw);}
+  .card-hint{margin-top:28px;color:var(--ash);font-size:12px;max-width:460px;line-height:1.7;}
+  .sub-panel{margin-top:14px;width:min(420px,92vw);border:1px solid rgba(176,107,255,.2);
+    border-radius:14px;padding:16px;background:rgba(12,7,20,.6);display:none;}
+  .sub-panel.show{display:block;animation:fade .3s ease;}
+  .sub-panel h3{margin:0 0 10px;color:var(--gold);letter-spacing:.1em;font-size:15px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+  .code-box{font-family:monospace;font-size:26px;letter-spacing:.35em;color:var(--violet-glow);
+    background:#0c0714;border:1px solid rgba(176,107,255,.4);border-radius:10px;padding:10px 16px;text-align:center;}
+  input.codein{font-family:monospace;font-size:20px;letter-spacing:.25em;text-transform:uppercase;
+    width:170px;text-align:center;background:#0c0714;border:1px solid rgba(176,107,255,.4);
+    color:var(--ink);padding:10px;border-radius:10px;}
+  .net-status{margin-top:10px;font-size:13px;color:var(--gold);min-height:18px;}
+
+  /* ===== ゲーム盤 ===== */
+  header.title{text-align:center;margin:2px 0 10px;}
+  header.title h1{font-family:var(--serif);font-size:clamp(20px,4vw,32px);margin:0;letter-spacing:.2em;font-weight:800;
+    background:linear-gradient(90deg,var(--crimson-glow),var(--violet-glow),var(--gold));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));}
+  header.title h1::before,header.title h1::after{content:"⚜";-webkit-text-fill-color:var(--gold-deep);color:var(--gold-deep);
+    font-size:.6em;opacity:.7;margin:0 .5em;vertical-align:.15em;}
+  .turn-indicator{font-family:var(--serif);text-align:center;font-size:15px;letter-spacing:.24em;margin:2px 0 6px;min-height:20px;}
+  .turn-indicator.you{color:var(--violet-glow);text-shadow:0 0 14px rgba(176,107,255,.5);}
+  .turn-indicator.cpu{color:var(--crimson-glow);text-shadow:0 0 14px rgba(255,43,74,.5);}
+  .statusbar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:2px 0 8px;font-size:12px;color:#b3a7bf;}
+  .badge{font-family:var(--serif);padding:3px 11px;border-radius:999px;border:1px solid rgba(233,196,106,.28);
+    background:linear-gradient(180deg,rgba(28,18,42,.9),rgba(12,7,20,.9));letter-spacing:.05em;
+    box-shadow:inset 0 1px 0 rgba(233,196,106,.12),0 2px 6px rgba(0,0,0,.4);}
+  .badge b{color:var(--gold);}
+  .badge.on{color:#fff;border-color:var(--violet-glow);box-shadow:0 0 12px rgba(176,107,255,.4);}
+
+  .board{display:grid;grid-template-columns:1fr;gap:14px;}
+  .zone{position:relative;border-radius:14px;padding:14px 16px;
+    background:var(--panel);
+    border:1px solid rgba(233,196,106,.14);
+    box-shadow:
+      inset 0 1px 0 rgba(233,196,106,.10),
+      inset 0 0 0 1px rgba(0,0,0,.5),
+      inset 0 0 50px rgba(0,0,0,.6),
+      0 10px 34px rgba(0,0,0,.55);}
+  /* 金の内枠 */
+  .zone::before{content:"";position:absolute;inset:5px;border-radius:10px;pointer-events:none;
+    border:1px solid rgba(233,196,106,.18);
+    box-shadow:inset 0 0 22px rgba(0,0,0,.5);}
+  /* 四隅の飾り */
+  .zone::after{content:"";position:absolute;inset:5px;border-radius:10px;pointer-events:none;
+    background:
+      linear-gradient(135deg,var(--edge-gold) 0 1px,transparent 1px) top left/16px 16px no-repeat,
+      linear-gradient(225deg,var(--edge-gold) 0 1px,transparent 1px) top right/16px 16px no-repeat,
+      linear-gradient(45deg,var(--edge-gold) 0 1px,transparent 1px) bottom left/16px 16px no-repeat,
+      linear-gradient(315deg,var(--edge-gold) 0 1px,transparent 1px) bottom right/16px 16px no-repeat;
+    opacity:.55;}
+  .zone>*{position:relative;z-index:1;}
+  .zone .zhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+  .zone .zhead .name{font-family:var(--serif);font-size:14px;letter-spacing:.22em;color:#d8c7a2;
+    text-shadow:0 1px 2px #000;}
+  .zone .zhead .name::before{content:"❖ ";color:var(--gold-deep);font-size:11px;}
+  .zone .zhead .meta{font-family:var(--serif);font-size:12.5px;color:var(--gold);letter-spacing:.06em;}
+  .hand{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;min-height:100px;align-items:center;
+    padding:4px 2px;}
+
+  .card{position:relative;width:66px;height:94px;border-radius:9px;flex:0 0 auto;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    user-select:none;transition:transform .18s ease, box-shadow .18s ease, filter .2s;
+    font-size:11px;text-align:center;}
+  .card .icon{font-size:22px;line-height:1;margin-bottom:4px;filter:drop-shadow(0 0 7px currentColor);}
+  .card .cname{font-family:var(--serif);font-size:11px;font-weight:700;padding:0 2px;line-height:1.15;letter-spacing:.02em;text-shadow:0 1px 2px #000;}
+  .card .cat{position:absolute;top:5px;left:0;right:0;font-size:8px;letter-spacing:.12em;color:rgba(233,196,106,.55);}
+  .card.face{background:
+      radial-gradient(120% 90% at 50% 0%, rgba(233,196,106,.06), transparent 60%),
+      linear-gradient(162deg,#2a1a3e 0%,#1a1029 55%,#120a1e 100%);
+    border:1px solid rgba(233,196,106,.22);
+    box-shadow:0 7px 16px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 16px rgba(0,0,0,.55);}
+  /* カード内側の細枠 */
+  .card.face::before{content:"";position:absolute;inset:3px;border-radius:6px;pointer-events:none;
+    border:1px solid rgba(233,196,106,.14);}
+  .card.attack{color:#ff6b81;border-color:rgba(255,80,110,.4);}
+  .card.defense{color:#6bd3ff;border-color:rgba(80,180,255,.35);}
+  .card.special{color:#b48bff;border-color:rgba(160,110,255,.4);}
+  .card.reverse{color:#e9c46a;border-color:rgba(233,196,106,.4);}
+  .card.joker{color:#ff3b5c;border-color:rgba(255,59,92,.6);box-shadow:0 0 22px rgba(255,59,92,.35), inset 0 0 18px rgba(0,0,0,.5);}
+  .card.back{background:repeating-linear-gradient(45deg, rgba(123,47,247,.12) 0 6px, transparent 6px 12px),linear-gradient(160deg,#1a0f2b,#0b0714);
+    border:1px solid rgba(176,107,255,.25);box-shadow:0 6px 14px rgba(0,0,0,.55), inset 0 0 20px rgba(80,20,120,.25);}
+  .card.back::after{content:"✷";font-size:26px;color:rgba(176,107,255,.55);text-shadow:0 0 12px rgba(176,107,255,.7);}
+  .card.pickable{cursor:pointer;animation:breathe 2.4s ease-in-out infinite;}
+  .card.pickable:hover{transform:translateY(-10px) scale(1.05);box-shadow:0 12px 26px rgba(0,0,0,.6), 0 0 22px rgba(255,43,74,.5);border-color:var(--crimson-glow);}
+  @keyframes breathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.25)}}
+  .card.glow{animation:goldpulse 1s ease-in-out infinite;border-color:var(--gold)!important;
+    box-shadow:0 0 26px rgba(233,196,106,.75), inset 0 0 18px rgba(233,196,106,.2)!important;z-index:2;}
+  .card.glow.clickable{cursor:pointer;}
+  .card.glow.clickable:hover{transform:translateY(-8px) scale(1.06);}
+  @keyframes goldpulse{0%,100%{box-shadow:0 0 16px rgba(233,196,106,.55)}50%{box-shadow:0 0 34px rgba(233,196,106,.95)}}
+  .card.dealt{animation:dealIn .35s ease both;}
+  @keyframes dealIn{from{opacity:0;transform:translateY(18px) scale(.85);}to{opacity:1;}}
+
+  .center{display:grid;grid-template-columns:150px 1fr;gap:12px;}
+  @media(max-width:640px){.center{grid-template-columns:1fr;} .card{width:56px;height:80px;}}
+  .grave{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
+  .grave .pile{width:66px;height:94px;border-radius:9px;border:1px solid rgba(233,196,106,.25);
+    display:flex;align-items:center;justify-content:center;color:rgba(200,180,140,.5);font-size:26px;
+    background:radial-gradient(circle at 50% 40%,rgba(60,20,20,.4),rgba(0,0,0,.5));
+    box-shadow:inset 0 0 26px rgba(0,0,0,.75), inset 0 1px 0 rgba(233,196,106,.15);}
+  .grave small{font-family:var(--serif);color:#c8b78e;letter-spacing:.2em;} .grave b{font-family:var(--serif);color:var(--gold);font-size:22px;text-shadow:0 0 12px rgba(233,196,106,.4);}
+  .log{height:190px;overflow-y:auto;font-size:13px;line-height:1.6;padding:6px 10px;
+    background:rgba(0,0,0,.35);border-radius:10px;border:1px solid rgba(176,107,255,.12);}
+  .log p{margin:0 0 4px;color:#cbb8e0;}
+  .log .p{color:var(--violet-glow);font-weight:700;} .log .c{color:var(--crimson-glow);font-weight:700;}
+  .log .g{color:var(--gold);} .log .sys{color:var(--ash);font-style:italic;} .log .dmg{color:var(--danger);font-weight:700;}
+  .log::-webkit-scrollbar{width:8px;} .log::-webkit-scrollbar-thumb{background:rgba(176,107,255,.3);border-radius:8px;}
+
+  .hint{text-align:center;color:var(--gold);font-size:13px;margin-top:6px;min-height:18px;}
+  .controls{display:flex;gap:10px;justify-content:center;margin-top:10px;flex-wrap:wrap;}
+  .btn{cursor:pointer;color:#efe6d2;font-family:var(--serif);
+    border:1px solid rgba(233,196,106,.4);
+    background:linear-gradient(180deg,#2c1c44 0%,#1a1029 55%,#120b1e 100%);
+    padding:12px 22px;border-radius:10px;font-size:14px;letter-spacing:.1em;transition:.15s;
+    box-shadow:inset 0 1px 0 rgba(233,196,106,.22), inset 0 -2px 6px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.5);
+    text-shadow:0 1px 2px #000;}
+  .btn:hover{border-color:var(--gold);color:#fff;
+    box-shadow:inset 0 1px 0 rgba(233,196,106,.35), 0 0 18px rgba(233,196,106,.3), 0 4px 14px rgba(0,0,0,.55);transform:translateY(-1px);}
+  .btn.crimson{border-color:rgba(255,43,74,.45);
+    background:linear-gradient(180deg,#3a1526 0%,#22101c 55%,#150b14 100%);}
+  .btn.crimson:hover{border-color:var(--crimson-glow);box-shadow:inset 0 1px 0 rgba(255,120,140,.25), 0 0 18px rgba(255,43,74,.35), 0 4px 14px rgba(0,0,0,.55);}
+  .btn.small{padding:9px 15px;font-size:13px;} .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none;}
+
+  .overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(800px 500px at 50% 50%, rgba(20,5,30,.7), rgba(3,2,8,.92));backdrop-filter:blur(4px);}
+  .overlay.show{display:flex;animation:fade .3s ease;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .modal{max-width:560px;width:calc(100% - 32px);max-height:88vh;overflow-y:auto;
+    border:1px solid rgba(176,107,255,.3);border-radius:18px;padding:22px 24px;
+    background:linear-gradient(180deg,#181026,#0c0714);box-shadow:0 0 60px rgba(123,47,247,.25);}
+  .modal{border-image:linear-gradient(160deg,rgba(233,196,106,.5),rgba(123,47,247,.3)) 1;}
+  .modal h2{font-family:var(--serif);margin:0 0 10px;font-size:21px;color:var(--gold);letter-spacing:.08em;text-shadow:0 1px 3px #000;
+    border-bottom:1px solid rgba(233,196,106,.2);padding-bottom:8px;}
+  .modal h3{color:var(--violet-glow);margin:16px 0 6px;font-size:14px;letter-spacing:.1em;}
+  .modal p,.modal li{font-size:13px;line-height:1.7;color:#cdbde0;}
+  .modal .cardgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;justify-content:center;}
+  .modal .cardgrid .card{cursor:pointer;}
+  .modal .cardgrid .card:hover{transform:translateY(-8px) scale(1.06);box-shadow:0 0 18px rgba(255,43,74,.5);}
+  .modal input[type=number]{width:100px;background:#0c0714;border:1px solid rgba(176,107,255,.4);color:var(--ink);
+    padding:9px;border-radius:8px;font-size:16px;text-align:center;}
+  .result-big{font-size:34px;font-weight:800;letter-spacing:.1em;text-align:center;margin:10px 0;}
+  .result-win{color:var(--violet-glow);text-shadow:0 0 24px rgba(176,107,255,.6);}
+  .result-lose{color:var(--crimson-glow);text-shadow:0 0 24px rgba(255,43,74,.6);}
+
+  /* ===== 効果発動シネマ（中央に大きく映す） ===== */
+  .cinema{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    pointer-events:none;background:radial-gradient(700px 500px at 50% 45%, rgba(20,6,32,.55), rgba(3,2,8,.86));
+    backdrop-filter:blur(3px);}
+  .cinema.show{display:flex;animation:fade .25s ease;}
+  .cinema-inner{display:flex;flex-direction:column;align-items:center;gap:18px;padding:20px;text-align:center;}
+  .cinema-card{width:150px;height:212px;border-radius:16px;position:relative;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,#2a1a3e,#160d22);
+    animation:cinemaIn .55s cubic-bezier(.2,1.3,.4,1) both;}
+  .cinema-card .cat{position:absolute;top:12px;left:0;right:0;font-size:12px;letter-spacing:.2em;color:rgba(255,255,255,.6);}
+  .cinema-card .cbig{font-size:74px;line-height:1;filter:drop-shadow(0 0 18px currentColor);}
+  .cinema-card .cnm{font-size:22px;font-weight:800;margin-top:10px;}
+  .cinema-card.attack{color:#ff6b81;border:2px solid rgba(255,80,110,.7);box-shadow:0 0 60px rgba(255,80,110,.5);}
+  .cinema-card.defense{color:#6bd3ff;border:2px solid rgba(80,180,255,.7);box-shadow:0 0 60px rgba(80,180,255,.45);}
+  .cinema-card.special{color:#b48bff;border:2px solid rgba(160,110,255,.75);box-shadow:0 0 60px rgba(160,110,255,.5);}
+  .cinema-card.reverse{color:#e9c46a;border:2px solid rgba(233,196,106,.75);box-shadow:0 0 60px rgba(233,196,106,.5);}
+  @keyframes cinemaIn{from{opacity:0;transform:scale(.4) rotate(-14deg);}to{opacity:1;transform:scale(1) rotate(0);}}
+  .cinema-title{font-size:clamp(22px,5vw,30px);font-weight:800;letter-spacing:.06em;
+    text-shadow:0 0 22px currentColor;animation:titleIn .5s ease .15s both;}
+  .cinema-flash{font-size:clamp(14px,3.5vw,17px);color:#efe6fb;margin-top:6px;max-width:440px;line-height:1.6;
+    animation:titleIn .5s ease .3s both;}
+  .cinema-who{font-size:12px;color:var(--ash);letter-spacing:.2em;margin-top:10px;animation:titleIn .5s ease .4s both;}
+  @keyframes titleIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ===== ターン開始バナー（手番・ターン数） ===== */
+  .turnbanner{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);z-index:58;
+    display:none;pointer-events:none;text-align:center;}
+  .turnbanner.show{display:block;}
+  .turnbanner .band{position:relative;padding:24px 0;overflow:hidden;
+    background:linear-gradient(90deg,transparent,rgba(9,4,17,.9) 14%,rgba(9,4,17,.9) 86%,transparent);
+    border-top:1px solid rgba(176,107,255,.35);border-bottom:1px solid rgba(176,107,255,.35);
+    animation:bandIn .45s cubic-bezier(.2,1,.3,1) both;}
+  .turnbanner.you .band{border-color:rgba(176,107,255,.65);box-shadow:inset 0 0 50px rgba(123,47,247,.3);}
+  .turnbanner.cpu .band{border-color:rgba(255,43,74,.6);box-shadow:inset 0 0 50px rgba(192,20,47,.28);}
+  @keyframes bandIn{from{transform:scaleY(.1);opacity:0;}to{transform:scaleY(1);opacity:1;}}
+  .turnbanner .tnum{font-size:14px;letter-spacing:.55em;color:var(--gold);animation:titleIn .4s ease .12s both;}
+  .turnbanner .tmain{font-size:clamp(26px,7vw,46px);font-weight:800;letter-spacing:.12em;margin-top:8px;animation:titleIn .5s ease .22s both;}
+  .turnbanner.you .tmain{color:var(--violet-glow);text-shadow:0 0 28px rgba(176,107,255,.65);}
+  .turnbanner.cpu .tmain{color:var(--crimson-glow);text-shadow:0 0 28px rgba(255,43,74,.65);}
+
+  /* ===== シャッフル時のカードが混ざるエフェクト ===== */
+  .card.mixing{animation:cardmix .7s ease both;z-index:3;}
+  @keyframes cardmix{
+    0%{transform:translate(0,0) rotate(0);}
+    28%{transform:translate(var(--dx,0),var(--dy,0)) rotate(var(--rot,0deg)) scale(.86);opacity:.55;}
+    62%{transform:translate(calc(var(--dx,0)*-.45),calc(var(--dy,0)*-.35)) rotate(calc(-1*var(--rot,0deg))) scale(.94);}
+    100%{transform:translate(0,0) rotate(0);opacity:1;}}
+  #shuffleBtn:disabled{opacity:.35;}
+
+  /* ===== 制限時間タイマー ===== */
+  .turntimer{max-width:460px;margin:8px auto 0;padding:8px 14px;border-radius:12px;
+    display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:13px;color:#e8dcc2;
+    background:linear-gradient(180deg,rgba(30,18,44,.85),rgba(14,8,22,.85));
+    border:1px solid rgba(233,196,106,.3);box-shadow:inset 0 0 18px rgba(0,0,0,.5),0 4px 14px rgba(0,0,0,.5);}
+  .turntimer .tt-label{white-space:nowrap;letter-spacing:.08em;}
+  .turntimer .tt-bar{flex:1;height:8px;border-radius:6px;overflow:hidden;background:rgba(0,0,0,.5);
+    box-shadow:inset 0 0 6px rgba(0,0,0,.6);}
+  .turntimer .tt-fill{display:block;height:100%;transition:width 1s linear;
+    background:linear-gradient(90deg,var(--violet),var(--violet-glow));}
+  .turntimer .tt-sec{white-space:nowrap;color:var(--gold);letter-spacing:.05em;}
+  .turntimer.urgent{border-color:var(--crimson-glow);box-shadow:inset 0 0 18px rgba(255,43,74,.2),0 0 18px rgba(255,43,74,.35);animation:ttpulse .8s ease-in-out infinite;}
+  .turntimer.urgent .tt-fill{background:linear-gradient(90deg,var(--crimson),var(--crimson-glow));}
+  .turntimer.urgent .tt-sec{color:var(--crimson-glow);}
+  @keyframes ttpulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+
+  /* ===== 伏せられた盗みカード（中身は見えない・位置のみ） ===== */
+  .card.back.choose{cursor:pointer;position:relative;}
+  .card.back.choose .posnum{position:relative;z-index:1;font-family:var(--serif);font-size:26px;font-weight:800;
+    color:rgba(233,196,106,.85);text-shadow:0 0 12px rgba(233,196,106,.5);}
+  .card.back.choose::after{opacity:.25;}
+  .card.back.choose:hover{transform:translateY(-8px) scale(1.06);
+    box-shadow:0 12px 26px rgba(0,0,0,.6),0 0 22px rgba(233,196,106,.5);border-color:var(--gold);}
+
+  /* ===== 引いたカードの一瞬の強調 ===== */
+  .card.justdrawn{animation:justdrawn 1s ease;}
+  @keyframes justdrawn{0%{box-shadow:0 0 0 rgba(176,107,255,0);}30%{box-shadow:0 0 28px rgba(176,107,255,.9);transform:translateY(-6px) scale(1.08);}100%{box-shadow:0 6px 14px rgba(0,0,0,.55);}}
+
+  /* ===== 吹き出しツールチップ ===== */
+  .cardtip{position:fixed;z-index:70;max-width:260px;pointer-events:none;opacity:0;
+    transform:translateY(4px);transition:opacity .14s ease, transform .14s ease;
+    padding:11px 13px;border-radius:12px;font-size:12.5px;line-height:1.6;
+    background:linear-gradient(180deg,#241634,#120a1e);color:#e9def6;
+    border:1px solid rgba(176,107,255,.5);box-shadow:0 10px 30px rgba(0,0,0,.6), 0 0 20px rgba(123,47,247,.25);}
+  .cardtip.show{opacity:1;transform:translateY(0);}
+  .cardtip .tip-name{font-weight:800;font-size:14px;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+  .cardtip .tip-cat{font-size:9px;padding:1px 6px;border-radius:999px;border:1px solid currentColor;margin-left:auto;letter-spacing:.1em;}
+  .cardtip .tip-desc{color:#cdbde0;}
+  .cardtip.attack .tip-name{color:#ff6b81;} .cardtip.defense .tip-name{color:#6bd3ff;}
+  .cardtip.special .tip-name{color:#b48bff;} .cardtip.reverse .tip-name{color:#e9c46a;} .cardtip.joker .tip-name{color:#ff3b5c;}
+  /* 吹き出しの三角 */
+  .cardtip::after{content:"";position:absolute;left:var(--arrow,50%);bottom:-8px;transform:translateX(-50%);
+    border-width:8px 8px 0 8px;border-style:solid;border-color:#120a1e transparent transparent transparent;
+    filter:drop-shadow(0 1px 0 rgba(176,107,255,.5));}
+  .cardtip.below::after{top:-8px;bottom:auto;border-width:0 8px 8px 8px;border-color:transparent transparent #241634 transparent;}
+
+  /* ===== レスポンシブ（PC / スマホ両対応） ===== */
+  @media(max-width:820px){
+    .wrap{padding:12px 10px 48px;}
+    .zone{padding:10px 10px;border-radius:13px;}
+    .hand{gap:6px;min-height:84px;}
+  }
+  @media(max-width:640px){
+    .center{grid-template-columns:1fr;}
+    .card{width:52px;height:74px;border-radius:7px;}
+    .card .icon{font-size:18px;} .card .cname{font-size:9px;} .card .cat{font-size:7px;}
+    .hand{gap:5px;min-height:78px;}
+    .log{height:150px;font-size:12px;}
+    .grave{flex-direction:row;gap:12px;} .grave .pile{width:52px;height:74px;}
+    .turn-indicator{font-size:13px;} .statusbar{font-size:11px;gap:6px;}
+    .btn{padding:12px 16px;} .controls{gap:8px;}
+    .cinema-card{width:120px;height:170px;} .cinema-card .cbig{font-size:58px;} .cinema-card .cnm{font-size:18px;}
+    .modal{padding:18px 16px;}
+  }
+  @media(max-width:400px){
+    .card{width:46px;height:66px;} .grave .pile{width:46px;height:66px;}
+    .card .icon{font-size:16px;} .card .cname{font-size:8px;}
+    .zone .zhead .name{font-size:11px;} .zone .zhead .meta{font-size:11px;}
+  }
+</style>
+</head>
+<body>
+<div class="fog"></div>
+<div class="wrap">
+
+  <!-- ================= タイトル画面 ================= -->
+  <div class="screen active" id="titleScreen">
+    <h1 class="logo">JOKER WITH MAGIC</h1>
+    <div class="subt">闇 の 魔 導 ば ば 抜 き</div>
+    <div class="menu">
+      <button class="btn" id="mBtnCpu">🕯️ 一人で挑む ― 対 CPU</button>
+      <button class="btn crimson" id="mBtnOnline">🌐 オンライン対戦 ― 対 人</button>
+      <button class="btn" id="mBtnRules">📜 遊び方と魔法一覧</button>
+    </div>
+
+    <!-- CPU難易度 -->
+    <div class="sub-panel" id="cpuPanel">
+      <h3>深淵の魔導士の格を選べ</h3>
+      <div class="row">
+        <button class="btn small" data-diff="easy">妖精級（弱）</button>
+        <button class="btn small" data-diff="normal">魔女級（普通）</button>
+        <button class="btn small crimson" data-diff="hard">大魔導級（強）</button>
+      </div>
+    </div>
+
+    <!-- オンライン -->
+    <div class="sub-panel" id="onlinePanel">
+      <h3>ネット越しの対局</h3>
+      <div class="row" id="onlineChoose">
+        <button class="btn small" id="btnCreate">部屋を作る（親）</button>
+        <button class="btn small" id="btnJoin">部屋に入る（子）</button>
+      </div>
+      <div id="createArea" style="display:none;margin-top:12px;text-align:center;">
+        <p style="font-size:12px;color:var(--ash)">この部屋コードを相手に伝えてください。相手が入力すると対局開始です。</p>
+        <div class="code-box" id="roomCode">------</div>
+        <div class="row" style="margin-top:8px;"><button class="btn small" id="btnCopy">コードをコピー</button></div>
+      </div>
+      <div id="joinArea" style="display:none;margin-top:12px;text-align:center;">
+        <p style="font-size:12px;color:var(--ash)">親から聞いた部屋コードを入力してください。</p>
+        <div class="row"><input class="codein" id="joinInput" maxlength="6" placeholder="CODE">
+          <button class="btn small crimson" id="btnConnect">接続</button></div>
+      </div>
+      <div class="net-status" id="netStatus"></div>
+    </div>
+
+    <div class="card-hint">
+      同じ名前のカードが2枚揃うと、その魔法が発動する。最後まで<b style="color:var(--danger)">道化師（Joker）</b>を抱えた者が闇に呑まれる ―
+    </div>
+  </div>
+
+  <!-- ================= ゲーム画面 ================= -->
+  <div class="screen" id="gameScreen">
+    <header class="title"><h1>JOKER WITH MAGIC</h1></header>
+    <div class="turn-indicator" id="turnIndicator"></div>
+    <div class="statusbar" id="statusbar"></div>
+
+    <div class="board">
+      <div class="zone">
+        <div class="zhead"><span class="name" id="oppName">敵</span><span class="meta" id="oppMeta"></span></div>
+        <div class="hand" id="oppHandEl"></div>
+      </div>
+      <div class="center">
+        <div class="zone grave"><small>墓 地</small><div class="pile">☠</div><div><b id="graveCount">0</b> <small>枚</small></div></div>
+        <div class="zone">
+          <div class="zhead"><span class="name">戦 況 の 記 録</span><span class="meta">Battle Log</span></div>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+      <div class="zone">
+        <div class="zhead"><span class="name" id="myName">汝 ― 魔を宿す者</span><span class="meta" id="myMeta"></span></div>
+        <div class="hand" id="myHandEl"></div>
+      </div>
+    </div>
+
+    <div class="turntimer" id="turnTimer" style="display:none"></div>
+    <div class="hint" id="hint"></div>
+    <div class="controls">
+      <button class="btn" id="shuffleBtn">🔀 手札シャッフル</button>
+      <button class="btn" id="rulesBtn">📜 魔法一覧</button>
+      <button class="btn crimson" id="titleBtn">🏰 タイトルへ戻る</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="cinema" id="cinema"></div>
+<div class="turnbanner" id="turnBanner"></div>
+<div class="cardtip" id="cardTip"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   カード定義（OldMaidWithMagic.py の役職に準拠）
+========================================================= */
+const CARDS = {
+  Fire:        {jp:"炎",cat:"attack",icon:"🔥",label:"攻撃",desc:"互いの手札から1種類を指定して燃やす（墓地へ送る）。相手も同じカードを持っていれば共に墓地へ落ちる（効果は発動しない）。"},
+  Wind:        {jp:"風",cat:"attack",icon:"🌪",label:"攻撃",desc:"相手の手札から1枚をランダムで墓地へ飛ばす。もしそれがJokerだった場合、使用者はその時点で敗北する。"},
+  Thief:       {jp:"盗み",cat:"attack",icon:"🗡",label:"攻撃",desc:"相手の手札から1箇所を指定し、そのカードを奪って手札に加える。揃えばそのペアは墓地へ（効果は発動しない）。"},
+  Water:       {jp:"水",cat:"defense",icon:"💧",label:"防御",desc:"このカードは攻撃魔法（炎・風・盗み）の効果を一切受けない。"},
+  Guardian:    {jp:"守護者",cat:"defense",icon:"🛡",label:"防御",desc:"このカードは攻撃魔法（炎・風・盗み）の効果を一切受けない。"},
+  Freeze:      {jp:"吹雪",cat:"special",icon:"❄",label:"特殊",desc:"相手を凍らせる。相手の次のターンを1度飛ばし、もう一度自分がカードを引く。"},
+  Open:        {jp:"開示",cat:"special",icon:"👁",label:"特殊",desc:"次の自分のターン、相手の手札の中身をすべて見た上で引ける（相手が4枚以上のときのみ発動）。"},
+  Double:      {jp:"二倍",cat:"special",icon:"⑈",label:"特殊",desc:"次のターン、相手にカードを2枚引かせる（引いたカードの効果も発動する）。"},
+  Declare:     {jp:"宣言",cat:"special",icon:"⌛",label:"特殊",desc:"墓地へ送るとき、あと何ターンで試合が終わるかを宣言。的中すればJokerを抱えていても勝利する。"},
+  Rotate:      {jp:"入れ替え",cat:"reverse",icon:"🔀",label:"逆転",desc:"2枚揃って墓地へ捨てられた瞬間、自分と相手の手札をすべて交換する。"},
+  Road_to_win: {jp:"勝利への道",cat:"reverse",icon:"🕊",label:"逆転",desc:"墓地へ送るとき、自分がJokerを持っていれば相手へ押し付ける。"},
+  Road_to_lose:{jp:"敗北への道",cat:"reverse",icon:"⛧",label:"逆転",desc:"墓地へ送るとき、相手がJokerを持っていればそれを引き受ける。"},
+  Joker:       {jp:"道化師",cat:"joker",icon:"🃏",label:"JOKER",desc:"最後まで所持していた者は原則として敗北する。すべての闇はこの一枚に集う。"}
+};
+const ATTACK=["Fire","Wind","Thief"], IMMUNE=["Water","Guardian"];
+const DECK_TYPES=["Fire","Water","Freeze","Wind","Thief","Guardian","Open","Rotate","Double","Declare","Road_to_win","Road_to_lose"];
+/* 効果発動シネマで表示する短文 */
+const EFFECT_FLASH={
+  Fire:"相手の手札から1種類を選び、焼き払う",
+  Wind:"相手の手札を1枚、嵐で墓地へ吹き飛ばす",
+  Thief:"相手の手札を1枚、奪い取る",
+  Freeze:"相手の次のターンを凍てつかせ、飛ばす",
+  Open:"次の自ターン、相手の手札を見透かす",
+  Double:"次のターン、相手に2枚を引かせる",
+  Declare:"終焉のターンを予言する ― 的中で勝利",
+  Rotate:"自分と相手の手札を、そっくり交換する",
+  Road_to_win:"道化師を持つなら、相手へ押し付ける",
+  Road_to_lose:"相手が道化師を持つなら、引き受ける",
+  Water:"攻撃魔法を弾く対の守り。揃って墓地へ。",
+  Guardian:"あらゆる攻撃魔法を弾く守り。揃って墓地へ。"
+};
+const NO_EFFECT=["Water","Guardian"]; // 揃っても効果を持たないカード
+
+/* ===== グローバル ===== */
+let S;                       // ゲーム状態（host権威 / guestはスナップショット）
+let MODE="cpu";              // 'cpu' | 'online'
+let ROLE="host";             // online: 'host' | 'guest'
+let DIFF="normal";           // 'easy'|'normal'|'hard'
+let VIEW="player";           // 自分の側：host/CPU='player', guest='cpu'
+let LOGHTML="";
+let INPUT={};                // {mode:'draw'|'discard', resolve}
+let PENDING={};              // reqId -> resolve （host: リモート応答待ち）
+let REQSEQ=0;
+let PEER=null, CONN=null, CONNECTED=false;
+let SHUFFLE_LOCK=false;       // シャッフル連打防止
+
+/* ===== ユーティリティ ===== */
+const $=id=>document.getElementById(id);
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const rand=n=>Math.floor(Math.random()*n);
+const pick=a=>a[rand(a.length)];
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;}
+const jp=n=>CARDS[n]?CARDS[n].jp:n;
+const other=s=>s==="player"?"cpu":"player";
+/* 表示名は「側」に固定（両クライアントで同一表示）。色は player=紫 / cpu=深紅 */
+function who(side){
+  if(MODE==="online"){
+    return side==="player"?'<span class="p">親の魔導士</span>':'<span class="c">子の魔導士</span>';
+  }
+  return side==="player"?'<span class="p">汝</span>':'<span class="c">深淵の魔導士</span>';
+}
+
+/* ===== 画面遷移 ===== */
+function showScreen(id){document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));$(id).classList.add("active");}
+
+/* ===== ログ ===== */
+function log(html){LOGHTML+="<p>"+html+"</p>";paintLog();}
+function paintLog(){const el=$("log");if(!el)return;el.innerHTML=LOGHTML;el.scrollTop=el.scrollHeight;}
+
+/* =========================================================
+   同期：host は状態をスナップショットで guest に送る
+========================================================= */
+function snapshot(){
+  return {t:"snap",player:S.player,cpu:S.cpu,graveyard:S.graveyard,turn:S.turn,
+    openFor:S.openFor,doubleVictim:S.doubleVictim,skipTarget:S.skipTarget,
+    forecast:S.forecast,forecastOwner:S.forecastOwner,revealFor:S.revealFor,
+    highlight:S.highlight,cinema:S.cinema,turnBanner:S.turnBanner,
+    shuffleLeft:S.shuffleLeft,shuffleAnim:S.shuffleAnim,
+    turnSide:S.turnSide,over:S.over,logHtml:LOGHTML,mode:MODE};
+}
+function sync(turnSide){
+  if(turnSide!==undefined) S.turnSide=turnSide;
+  render();
+  if(MODE==="online"&&ROLE==="host"&&CONN&&CONNECTED){ try{CONN.send(snapshot());}catch(e){} }
+}
+function applySnapshot(m){
+  S=m; LOGHTML=m.logHtml; paintLog(); render();
+}
+
+/* host→guest リクエスト（意思決定の依頼）。相手が65秒無反応なら自動決定 */
+function requestRemote(kind,side,opts){
+  return new Promise(resolve=>{
+    const id=++REQSEQ; let settled=false;
+    const finish=v=>{ if(settled)return; settled=true; delete PENDING[id]; stopTurnTimer(); resolve(v); };
+    PENDING[id]=finish;
+    CONN.send({t:"req",id,kind,opts});
+    startTurnTimer(65,false,()=>{
+      log(`⏳ <span class="sys">${who(side)}の応答が無い ― 自動で手が選ばれた。</span>`);
+      finish(autoDecision(kind,side,opts));
+    });
+  });
+}
+
+/* =========================================================
+   意思決定の抽象化
+   controller: 'human-local' | 'ai' | 'remote'
+========================================================= */
+function controllerOf(side){
+  if(MODE==="cpu") return side==="player"?"human-local":"ai";
+  return side==="player"?"human-local":"remote"; // online host
+}
+async function decide(side,kind,opts={}){
+  const c=controllerOf(side);
+  if(c==="ai"){
+    if(kind==="discard"){await wait(620);return true;}
+    return aiDecide(kind,side,opts);
+  }
+  if(c==="remote") return await requestRemote(kind,side,opts);
+  return await humanDecide(kind,side,opts);
+}
+
+/* 人間の意思決定。オンライン時は60秒で自動決定 */
+async function humanDecide(kind,side,opts){
+  if(MODE!=="online") return await humanUI(kind,opts);
+  return await new Promise(resolve=>{
+    let settled=false;
+    const finish=v=>{ if(settled)return; settled=true; stopTurnTimer(); resolve(v); };
+    startTurnTimer(60,true,()=>{
+      if(CURRENT_UI_CANCEL){CURRENT_UI_CANCEL();CURRENT_UI_CANCEL=null;}
+      log(`⏳ <span class="sys">${who(side)}は時間切れ ― 自動で手が選ばれた。</span>`);
+      finish(autoDecision(kind,side,opts));
+    });
+    humanUI(kind,opts).then(v=>finish(v));
+  });
+}
+
+/* 時間切れ・相手無反応時の自動手 */
+function autoDecision(kind,side,opts){
+  if(kind==="draw"){ const from=side==="player"?S.cpu:S.player; return from.length?rand(from.length):0; }
+  if(kind==="discard") return true;
+  if(kind==="fireTarget") return pick(opts.candidates);
+  if(kind==="thiefTarget") return pick(opts.candidates.map(c=>c.idx));
+  if(kind==="declareNum"){ const t=S.player.length+S.cpu.length; return Math.max(0,Math.round((t-3)/2)); }
+  return 0;
+}
+
+/* ===== 制限時間タイマー表示（オンラインのみ） ===== */
+let TURN_TIMER=null;
+function startTurnTimer(seconds,mine,onTimeout){
+  stopTurnTimer();
+  const el=$("turnTimer");
+  let s=seconds;
+  const paint=()=>{ if(!el)return; el.style.display="block";
+    el.className="turntimer"+(s<=10?" urgent":"");
+    el.innerHTML=`<span class="tt-label">${mine?"⏳ あなたの手番":"⏳ 相手の手番"}</span>
+      <span class="tt-bar"><span class="tt-fill" style="width:${(s/seconds*100)}%"></span></span>
+      <span class="tt-sec">残り ${s} 秒</span>`; };
+  paint();
+  TURN_TIMER=setInterval(()=>{ s--; if(s<=0){ stopTurnTimer(); onTimeout&&onTimeout(); return; } paint(); },1000);
+}
+function stopTurnTimer(){ if(TURN_TIMER){clearInterval(TURN_TIMER);TURN_TIMER=null;} const el=$("turnTimer"); if(el){el.style.display="none";el.innerHTML="";} }
+
+/* 人間UI（host本人 / guest 共通）。CURRENT_UI_CANCEL で時間切れキャンセル可能 */
+let CURRENT_UI_CANCEL=null;
+function humanUI(kind,opts){
+  if(kind==="draw") return new Promise(res=>{
+    CURRENT_UI_CANCEL=()=>{INPUT={};render();};
+    INPUT={mode:"draw",resolve:i=>{INPUT={};CURRENT_UI_CANCEL=null;render();res(i);}}; render();
+  });
+  if(kind==="discard") return new Promise(res=>{
+    CURRENT_UI_CANCEL=()=>{INPUT={};render();};
+    INPUT={mode:"discard",resolve:()=>{INPUT={};CURRENT_UI_CANCEL=null;render();res(true);}}; render();
+  });
+  if(kind==="fireTarget") return chooseCardModal("🔥 炎 ― 燃やす種類を選べ","敵の手札から燃やすカードを1種類選択。",
+      opts.candidates.map(n=>({name:n,val:n})),false);
+  if(kind==="thiefTarget") return chooseCardModal("🗡 盗み ― 奪う位置を選べ","中身は伏せられている。位置だけを頼りに1枚を選んで奪う。",
+      opts.candidates.map(c=>({name:c.name,val:c.idx})),!opts.revealed);
+  if(kind==="declareNum") return askNumber("⌛ 宣言 ― 終焉を予言せよ","あと何ターンで試合が終わるかを宣言する。的中すればJokerを抱えていても勝利する。");
+}
+function chooseCardModal(title,sub,items,hide){
+  return new Promise(res=>{
+    CURRENT_UI_CANCEL=()=>{closeModal();};
+    const grid=items.map((it,i)=>{const m=CARDS[it.name];
+      if(hide) return `<div class="card back choose" data-i="${i}"><div class="posnum">${i+1}</div></div>`;
+      return `<div class="card face ${m.cat}" data-i="${i}"><div class="cat">${m.label}</div>
+        <div class="icon">${m.icon}</div><div class="cname">${m.jp}</div></div>`;}).join("");
+    openModal(`<h2>${title}</h2><p>${sub}</p><div class="cardgrid">${grid}</div>`);
+    $("modal").querySelectorAll(".card").forEach(el=>el.onclick=()=>{CURRENT_UI_CANCEL=null;closeModal();res(items[+el.dataset.i].val);});
+  });
+}
+function askNumber(title,sub){
+  return new Promise(res=>{
+    CURRENT_UI_CANCEL=()=>{closeModal();};
+    openModal(`<h2>${title}</h2><p>${sub}</p><div class="controls">
+      <input type="number" id="numIn" min="0" value="0"><button class="btn crimson" id="numOk">宣言する</button></div>`);
+    $("numOk").onclick=()=>{const v=Math.max(0,parseInt($("numIn").value||"0",10));CURRENT_UI_CANCEL=null;closeModal();res(v);};
+  });
+}
+
+/* =========================================================
+   AI（難易度別）
+========================================================= */
+function aiDecide(kind,side,opts){
+  const my=side==="cpu"?S.cpu:S.player, opp=side==="cpu"?S.player:S.cpu;
+  if(kind==="draw"){
+    const n=opp.length;
+    if(DIFF==="easy") return rand(n);
+    const known=opp.map(()=>DIFF==="hard"?true:Math.random()<0.6); // 記憶精度
+    const mySet=new Set(my);
+    const pairIdx=[]; for(let i=0;i<n;i++) if(known[i]&&opp[i]!=="Joker"&&mySet.has(opp[i])) pairIdx.push(i);
+    if(pairIdx.length) return pick(pairIdx);        // ペア完成を狙う
+    const safe=[]; for(let i=0;i<n;i++) if(!(known[i]&&opp[i]==="Joker")) safe.push(i); // 既知Jokerを回避
+    return pick(safe.length?safe:[...Array(n).keys()]);
+  }
+  if(kind==="fireTarget"){
+    const order=["Wind","Rotate","Thief","Fire","Road_to_lose","Double","Declare","Open","Freeze","Road_to_win"];
+    for(const t of order) if(opts.candidates.includes(t)&&!my.includes(t)) return t; // 自分の同名は温存
+    for(const t of order) if(opts.candidates.includes(t)) return t;
+    return opts.candidates[0];
+  }
+  if(kind==="thiefTarget"){
+    const mySet=new Set(my);
+    if(DIFF!=="easy"){const pc=opts.candidates.find(c=>mySet.has(c.name)); if(pc) return pc.idx;}
+    const order=["Wind","Rotate","Thief","Fire","Road_to_lose","Double"];
+    for(const t of order){const f=opts.candidates.find(c=>c.name===t); if(f) return f.idx;}
+    return pick(opts.candidates.map(c=>c.idx));
+  }
+  if(kind==="declareNum"){
+    const total=S.player.length+S.cpu.length;
+    let n=Math.max(0,Math.round((total-3)/2));
+    if(opp.some(c=>ATTACK.includes(c))) n=Math.max(0,n-1);
+    return n;
+  }
+  return 0;
+}
+
+/* =========================================================
+   描画（VIEW に応じて上下を反転）
+========================================================= */
+function meHand(){return VIEW==="player"?S.player:S.cpu;}
+function opHand(){return VIEW==="player"?S.cpu:S.player;}
+function meSide(){return VIEW;}
+function cardFace(name){const m=CARDS[name];const d=document.createElement("div");
+  d.className="card face "+m.cat;
+  d.innerHTML=`<div class="cat">${m.label}</div><div class="icon">${m.icon}</div><div class="cname">${m.jp}</div>`;
+  attachTip(d,name); return d;}
+function cardBack(){const d=document.createElement("div");d.className="card back";return d;}
+
+/* ===== 吹き出しツールチップ ===== */
+function attachTip(el,name){
+  el.addEventListener("mouseenter",()=>showTip(el,name));
+  el.addEventListener("mouseleave",hideTip);
+  let lp=null;
+  el.addEventListener("touchstart",()=>{ lp=setTimeout(()=>showTip(el,name),330); },{passive:true});
+  el.addEventListener("touchend",()=>{ clearTimeout(lp); setTimeout(hideTip,1600); },{passive:true});
+  el.addEventListener("touchmove",()=>{ clearTimeout(lp); },{passive:true});
+}
+function showTip(el,name){
+  const m=CARDS[name], tip=$("cardTip"); if(!tip) return;
+  tip.innerHTML=`<div class="tip-name">${m.icon} ${m.jp}<span class="tip-cat">${m.label}</span></div><div class="tip-desc">${m.desc}</div>`;
+  tip.className="cardtip show "+m.cat;
+  tip.style.left="-9999px"; tip.style.top="0px";
+  const r=el.getBoundingClientRect(), tw=tip.offsetWidth, th=tip.offsetHeight, pad=8;
+  let x=r.left+r.width/2-tw/2; x=Math.max(pad,Math.min(x,window.innerWidth-tw-pad));
+  let y=r.top-th-12, below=false;
+  if(y<pad){ y=r.bottom+12; below=true; }
+  tip.style.left=x+"px"; tip.style.top=y+"px";
+  tip.classList.toggle("below",below);
+  tip.style.setProperty("--arrow",(r.left+r.width/2-x)+"px");
+}
+function hideTip(){ const tip=$("cardTip"); if(tip) tip.className="cardtip"; }
+
+/* ===== 効果発動シネマ（中央に大きく映す） ===== */
+function renderCinema(){
+  const cin=$("cinema"); if(!cin) return;
+  if(S && S.cinema){
+    const m=CARDS[S.cinema.card], eff=!NO_EFFECT.includes(S.cinema.card);
+    cin.innerHTML=`<div class="cinema-inner">
+      <div class="cinema-card ${m.cat}"><div class="cat">${m.label}</div>
+        <div class="cbig">${m.icon}</div><div class="cnm">${m.jp}</div></div>
+      <div class="cinema-text">
+        <div class="cinema-title">${eff?`＜${m.jp}＞　効果発動！`:`＜${m.jp}＞`}</div>
+        <div class="cinema-flash">${EFFECT_FLASH[S.cinema.card]||""}</div>
+        <div class="cinema-who">— ${who(S.cinema.side)} —</div>
+      </div></div>`;
+    cin.className="cinema show";
+  }else{ cin.className="cinema"; cin.innerHTML=""; }
+}
+async function cinematic(card,side){
+  S.cinema={card,side};
+  hideTip(); sync();
+  await wait(NO_EFFECT.includes(card)?1500:2200);
+  S.cinema=null; sync();
+}
+
+/* ===== ターン開始バナー ===== */
+function renderBanner(){
+  const el=$("turnBanner"); if(!el) return;
+  if(S && S.turnBanner){
+    const isMe=(S.turnBanner.side===meSide());
+    el.className="turnbanner show "+(isMe?"you":"cpu");
+    el.innerHTML=`<div class="band"><div class="tnum">TURN ${S.turnBanner.turn}</div>
+      <div class="tmain">${isMe?"▶  あなたの手番":"◀  相手の手番"}</div></div>`;
+  }else{ el.className="turnbanner"; el.innerHTML=""; }
+}
+async function turnCinema(side){
+  hideTip();
+  S.turnBanner={side,turn:S.turn};
+  sync(side);
+  await wait(1150);
+  S.turnBanner=null;
+  sync();
+}
+
+/* ===== 手札シャッフル（3回まで） ===== */
+async function doShuffle(side){
+  if(!S.shuffleLeft || S.shuffleLeft[side]<=0) return;
+  S.shuffleLeft[side]--;
+  const hand = side==="player"?S.player:S.cpu;
+  shuffle(hand);
+  S.shuffleAnim=side;
+  log(`🔀 ${who(side)}が手札を切り直した ― 位置がすべて入れ替わる。（残り${S.shuffleLeft[side]}回）`);
+  sync();
+  await wait(720);
+  S.shuffleAnim=null;
+  sync();
+}
+async function requestShuffle(){
+  if(!S || S.over || SHUFFLE_LOCK) return;
+  if(INPUT.mode!=="draw") return;                 // 自分の手番（引く番）のみ
+  const side=meSide();
+  if(!S.shuffleLeft || S.shuffleLeft[side]<=0) return;
+  SHUFFLE_LOCK=true; render();
+  if(MODE==="online" && ROLE==="guest"){
+    try{CONN.send({t:"shuffle"});}catch(e){}
+    setTimeout(()=>{SHUFFLE_LOCK=false;render();},1000);   // host 側で処理・同期
+  }else{
+    await doShuffle(side);
+    SHUFFLE_LOCK=false; render();
+  }
+}
+
+function render(){
+  if(!S) return;
+  const op=$("oppHandEl"), me=$("myHandEl"); op.innerHTML=""; me.innerHTML="";
+  const revealTop=(S.revealFor===meSide());               // 自分に開示が有効なら相手手札が見える
+  const hl=S.highlight;                                    // {side,card}
+  const mixTop=S.shuffleAnim && S.shuffleAnim!==meSide();  // 相手がシャッフル中
+  const mixBottom=(S.shuffleAnim===meSide());              // 自分がシャッフル中
+  // 相手（上）
+  opHand().forEach((name,idx)=>{
+    let el;
+    if(revealTop && !mixTop){ el=cardFace(name); }
+    else{ el=cardBack(); }
+    if(mixTop){ applyMix(el,idx); }
+    else{
+      if(INPUT.mode==="draw"){ el.classList.add("pickable"); el.onclick=()=>INPUT.resolve(idx); }
+      if(hl && hl.side!==meSide() && name===hl.card){ el.classList.add("glow"); } // 相手側のglow（観戦表示）
+    }
+    op.appendChild(el);
+  });
+  // 自分（下）
+  meHand().forEach((name,idx)=>{
+    const el = mixBottom ? cardBack() : cardFace(name);   // シャッフル中は裏向きで混ぜる
+    if(mixBottom){ applyMix(el,idx); }
+    else if(hl && hl.side===meSide() && name===hl.card){
+      el.classList.add("glow");
+      if(INPUT.mode==="discard"){ el.classList.add("clickable"); el.onclick=()=>INPUT.resolve(); }
+    }
+    me.appendChild(el);
+  });
+
+  // ラベル・枚数
+  let oppLabel="敵 ― 深淵の魔導士", myLabel="汝 ― 魔を宿す者";
+  if(MODE==="online"){
+    oppLabel = VIEW==="player"?"宿敵 ― 子の魔導士":"宿敵 ― 親の魔導士";
+    myLabel  = VIEW==="player"?"汝 ― 親の魔導士":"汝 ― 子の魔導士";
+  }
+  $("oppName").textContent=oppLabel;
+  $("myName").textContent=myLabel;
+  $("oppMeta").textContent=`手札 ${opHand().length} 枚`;
+  $("myMeta").textContent=`手札 ${meHand().length} 枚`;
+  $("graveCount").textContent=S.graveyard.length;
+
+  // 手番表示（各クライアントが自視点で計算）
+  if(!S.over && S.turnSide){
+    const isMe=(S.turnSide===meSide());
+    setTurn(isMe?"▼ あなたの手番 ▼":"▼ 相手の手番 ▼", isMe?"you":"cpu");
+  }
+
+  // ステータス
+  const b=[]; b.push(`<span class="badge">ターン <b>${S.turn}</b></span>`);
+  if(MODE==="cpu"){const dn={easy:"妖精級",normal:"魔女級",hard:"大魔導級"}[DIFF];b.push(`<span class="badge">敵：${dn}</span>`);}
+  const sideName=s=>{const isMe=(s===meSide());return isMe?"汝":"敵";};
+  if(S.openFor) b.push(`<span class="badge on">👁 開示予約(${sideName(S.openFor)})</span>`);
+  if(S.revealFor) b.push(`<span class="badge on">👁 開示中(${sideName(S.revealFor)})</span>`);
+  if(S.doubleVictim) b.push(`<span class="badge on">⑈ 二倍(${sideName(S.doubleVictim)}が2枚)</span>`);
+  if(S.skipTarget) b.push(`<span class="badge on">❄ 凍結(${sideName(S.skipTarget)})</span>`);
+  if(S.forecast>=0) b.push(`<span class="badge on">⌛ 宣言 残${S.forecast}(${sideName(S.forecastOwner)})</span>`);
+  $("statusbar").innerHTML=b.join("");
+
+  // シャッフルボタンの状態
+  const sb=$("shuffleBtn");
+  if(sb){
+    const left=(S.shuffleLeft&&S.shuffleLeft[meSide()]!=null)?S.shuffleLeft[meSide()]:3;
+    sb.textContent=`🔀 手札シャッフル (残り${left})`;
+    sb.disabled = SHUFFLE_LOCK || S.over || left<=0 || INPUT.mode!=="draw";
+  }
+
+  paintLog();
+  renderCinema();
+  renderBanner();
+}
+/* シャッフル演出：カードにランダムな動きを与える */
+function applyMix(el,i){
+  el.classList.add("mixing");
+  el.style.setProperty("--dx",((Math.random()*2-1)*70).toFixed(0)+"px");
+  el.style.setProperty("--dy",((Math.random()*2-1)*28).toFixed(0)+"px");
+  el.style.setProperty("--rot",((Math.random()*2-1)*24).toFixed(0)+"deg");
+  el.style.animationDelay=(i*22)+"ms";
+}
+function setTurn(text,cls){const t=$("turnIndicator");if(t){t.textContent=text;t.className="turn-indicator "+(cls||"");}}
+function setHint(t){const h=$("hint");if(h)h.textContent=t||"";}
+
+/* ===== モーダル ===== */
+function openModal(html){$("modal").innerHTML=html;$("overlay").classList.add("show");}
+function closeModal(){$("overlay").classList.remove("show");}
+
+/* =========================================================
+   ペア整理
+========================================================= */
+function collapseAuto(hand){ // 静かに墓地へ（効果なし）
+  const cnt={}; hand.forEach(c=>cnt[c]=(cnt[c]||0)+1);
+  for(const c in cnt){const pairs=Math.floor(cnt[c]/2);
+    for(let i=0;i<pairs;i++){let r=0;for(let k=hand.length-1;k>=0&&r<2;k--)if(hand[k]===c){hand.splice(k,1);r++;}S.graveyard.push(c,c);}}
+}
+
+/* =========================================================
+   効果発動
+========================================================= */
+async function activateEffect(card,side){
+  const opp=other(side);
+  const aH=side==="player"?S.player:S.cpu, tH=side==="player"?S.cpu:S.player;
+  switch(card){
+    case "Fire":{
+      const burn=[...new Set(tH.filter(c=>c!=="Joker"&&!IMMUNE.includes(c)))];
+      if(!burn.length){log(`　${who(side)}の<span class="g">炎</span>は虚空に消えた。`);break;}
+      const nm=await decide(side,"fireTarget",{candidates:burn});
+      const ti=tH.indexOf(nm); if(ti>-1){tH.splice(ti,1);S.graveyard.push(nm);}
+      let ex=""; const ai=aH.indexOf(nm); if(ai>-1){aH.splice(ai,1);S.graveyard.push(nm);ex=`　互いの手にあった<span class="g">${jp(nm)}</span>が共に灰となった。`;}
+      log(`　🔥 ${who(side)}が<span class="g">${jp(nm)}</span>を燃やした。${ex}`);break;
+    }
+    case "Wind":{
+      if(!tH.length){log(`　${who(side)}の<span class="g">風</span>は何も掴めなかった。`);break;}
+      const i=rand(tH.length),nm=tH[i];
+      if(nm==="Joker"){log(`　🌪 ${who(side)}の風が触れたのは<span class="dmg">道化師</span>だった…！`);endGame(opp,"wind_joker",side);return "over";}
+      if(IMMUNE.includes(nm)){log(`　🌪 風は<span class="g">${jp(nm)}</span>を捉えたが、防御に阻まれた。`);break;}
+      tH.splice(i,1);S.graveyard.push(nm);
+      let ex=""; const ai=aH.indexOf(nm);if(ai>-1){aH.splice(ai,1);S.graveyard.push(nm);ex=`　同名の<span class="g">${jp(nm)}</span>も共に飛ばされた。`;}
+      log(`　🌪 ${who(side)}の風が<span class="g">${jp(nm)}</span>を墓地へ飛ばした。${ex}`);break;
+    }
+    case "Thief":{
+      const st=tH.map((c,i)=>({name:c,idx:i})).filter(o=>!IMMUNE.includes(o.name));
+      if(!st.length){log(`　${who(side)}の<span class="g">盗み</span>は空を切った。`);break;}
+      const idx=await decide(side,"thiefTarget",{candidates:st,revealed:(S.revealFor===side)});
+      const stolen=tH.splice(idx,1)[0]; aH.push(stolen);
+      log(`　🗡 ${who(side)}が<span class="g">${jp(stolen)}</span>を奪い取った。`);
+      collapseAuto(aH);break;
+    }
+    case "Freeze":{S.skipTarget=opp;log(`　❄ ${who(side)}が吹雪を放った。次の${who(opp)}のターンは凍てつく。`);break;}
+    case "Open":{
+      if(tH.length>=4){S.openFor=side;log(`　👁 ${who(side)}が開示の瞳を開いた。次の自ターン、相手の手札が露わになる。`);}
+      else log(`　👁 ${who(side)}の開示は不発（相手が3枚以下）。`);break;
+    }
+    case "Double":{S.doubleVictim=opp;log(`　⑈ ${who(side)}が二倍を宣した。次のターン、${who(opp)}は2枚を引かされる。`);break;}
+    case "Declare":{
+      S.forecastOwner=side;
+      const n=await decide(side,"declareNum",{});
+      S.forecast=n;
+      log(`　⌛ ${who(side)}は「<span class="g">あと${n}ターンで終わる</span>」と宣言した。`);break;
+    }
+    case "Rotate":{const t=S.player;S.player=S.cpu;S.cpu=t;
+      log(`　🔀 ${who(side)}の入れ替えが発動。<span class="dmg">両者の手札がそっくり交換された！</span>`);
+      collapseAuto(S.player);collapseAuto(S.cpu);break;}
+    case "Road_to_win":{
+      if(aH.includes("Joker")){aH.splice(aH.indexOf("Joker"),1);tH.push("Joker");
+        log(`　🕊 ${who(side)}が勝利への道を歩み、<span class="dmg">道化師を${who(opp)}へ押し付けた。</span>`);}
+      else log(`　🕊 ${who(side)}の勝利への道は静かに閉じた。`);break;}
+    case "Road_to_lose":{
+      if(tH.includes("Joker")){tH.splice(tH.indexOf("Joker"),1);aH.push("Joker");
+        log(`　⛧ ${who(side)}が敗北への道を選び、<span class="dmg">道化師を自ら引き受けた。</span>`);}
+      else log(`　⛧ ${who(side)}の敗北への道には何も無かった。`);break;}
+  }
+  return "ok";
+}
+
+/* =========================================================
+   1回のドロー解決（手動ディスカード付き）
+========================================================= */
+async function resolveDraw(side){
+  const aH=side==="player"?S.player:S.cpu, tH=side==="player"?S.cpu:S.player;
+  if(tH.length===0) return "ok";
+  sync(side);
+  setHint("");
+  if(controllerOf(side)==="human-local") setHint(S.revealFor===side?"開示中：相手の手札が見えている。1枚選んで引け。":"相手のカードを1枚選んで引け。");
+
+  const idx=await decide(side,"draw",{});
+  const drawn=tH.splice(idx,1)[0]; aH.push(drawn);
+  log(`${who(side)}は1枚を引いた ― <span class="g">${(side===meSide())?jp(drawn):"？？？"}</span>`);
+  sync(); await wait(650);
+
+  if(drawn!=="Joker" && aH.filter(c=>c===drawn).length>=2){
+    log(`　✦ ${who(side)}の手で<span class="g">${jp(drawn)}</span>が揃った ― 魔力が解き放たれる。`);
+    S.highlight={side,card:drawn};
+    setHint("");
+    if(controllerOf(side)==="human-local") setHint("✦ 光る2枚をクリックして墓地へ送れ。");
+    sync();
+    await decide(side,"discard",{card:drawn});   // 手動で選択して捨てる
+    // 墓地へ送る前に、中央で大きく演出
+    await cinematic(drawn,side);
+    // ペアを墓地へ
+    let r=0; for(let k=aH.length-1;k>=0&&r<2;k--) if(aH[k]===drawn){aH.splice(k,1);r++;}
+    S.graveyard.push(drawn,drawn); S.highlight=null; setHint("");
+    sync(); await wait(450);
+    const rr=await activateEffect(drawn,side);
+    if(rr==="over") return "over";
+    await wait(500);
+  }
+  collapseAuto(S.player); collapseAuto(S.cpu); // 付随ペア（盗み等）は自動
+  S.highlight=null; sync();
+  return "ok";
+}
+
+/* =========================================================
+   ターン進行（host のみ実行）
+========================================================= */
+async function gameLoop(){
+  while(!S.over){
+    const side=S.current;
+    // ターン開始バナー（手番・ターン数を大きく表示）
+    await turnCinema(side);
+    if(S.over) return;
+    // 開示の有効化
+    S.revealFor=(S.openFor===side)?side:null;
+    if(S.openFor===side){S.openFor=null; log(`👁 <span class="sys">開示の瞳により、相手の手札が ${who(side)} の前に晒される。</span>`);}
+    sync();
+
+    // 二倍
+    let draws=1;
+    if(S.doubleVictim===side){draws=2;S.doubleVictim=null;log(`⑈ <span class="sys">二倍の呪いにより、${who(side)}は2枚を引く。</span>`);sync();}
+
+    for(let d=0; d<draws; d++){
+      if(S.player.length===0||S.cpu.length===0) break;
+      if(d===1) await wait(700);
+      const r=await resolveDraw(side);
+      if(r==="over"||S.over) return;
+      if(S.player.length===0||S.cpu.length===0) break;
+    }
+
+    S.turn++; sync();
+
+    // 勝敗判定
+    if(S.player.length===0||S.cpu.length===0){ finishByEmpty(); return; }
+
+    // Declareカウントダウン
+    if(S.forecast>0) S.forecast--;
+    else if(S.forecast===0){log(`　⌛ ${who(S.forecastOwner)}の宣言は空を切った。予言は潰えた。`);S.forecast=-1;S.forecastOwner=null;}
+    sync(); await wait(500);
+
+    // Freeze / 次の手番
+    let next=other(side);
+    if(S.skipTarget===next){log(`❄ <span class="sys">${who(next)}は凍りつき、ターンを飛ばされた。</span>`);S.skipTarget=null;next=side;await wait(700);}
+    S.current=next; S.revealFor=null; sync(next);
+    await wait(550);
+  }
+}
+function finishByEmpty(){
+  if(S.over) return;
+  if(S.forecast===0){ endGame(S.forecastOwner,"declare"); return; }
+  const winner=S.player.length===0?"player":"cpu";
+  endGame(winner,"normal");
+}
+function endGame(winnerSide,reason,actor){
+  if(S.over) return;
+  S.over=true; S.revealFor=null; S.highlight=null; INPUT={}; stopTurnTimer();
+  let rt="";
+  if(reason==="normal") rt = winnerSide==="player"
+    ? `${who("player")}は最後の一枚を手放し、闇を退けた。` : `${who("cpu")}の手には道化師が残った ― 深淵に呑まれた。`;
+  if(reason==="declare") rt=`${who(winnerSide)}の<span class="g">宣言</span>が的中。予言のとおり終焉が訪れた。`;
+  if(reason==="wind_joker") rt=`${who(actor)}の放った風が道化師を捉え、自滅した。`;
+  log(`<span class="g">━━━ 決着 ━━━</span> <span class="sys">${rt}</span>`);
+  sync();
+  if(MODE==="online"&&ROLE==="host"&&CONN) { try{CONN.send({t:"over",winnerSide,reason,rt});}catch(e){} }
+  showResult(winnerSide,rt);
+}
+function showResult(winnerSide,rt){
+  const myWin=(winnerSide===meSide());
+  setTurn(myWin?"― 勝 利 ―":"― 敗 北 ―",myWin?"you":"cpu");
+  setHint("");
+  setTimeout(()=>{
+    openModal(`<div class="result-big ${myWin?'result-win':'result-lose'}">${myWin?'VICTORY':'DEFEAT'}</div>
+      <p style="text-align:center">${rt}</p>
+      <p style="text-align:center;color:var(--ash)">経過ターン：<b style="color:var(--gold)">${(S.turn-1)}</b></p>
+      <div class="controls">
+        ${MODE==="cpu"?'<button class="btn crimson" id="againBtn">🔄 再び挑む</button>':''}
+        <button class="btn" id="toTitle2">🏰 タイトルへ</button></div>`);
+    const ab=$("againBtn"); if(ab) ab.onclick=()=>{closeModal();startCpu(DIFF);};
+    $("toTitle2").onclick=()=>{closeModal();backToTitle();};
+  },700);
+}
+
+/* =========================================================
+   ゲーム初期化
+========================================================= */
+function freshState(){return{player:[],cpu:[],graveyard:[],turn:1,current:"player",over:false,
+  skipTarget:null,openFor:null,revealFor:null,doubleVictim:null,forecast:-1,forecastOwner:null,
+  highlight:null,cinema:null,turnBanner:null,shuffleLeft:{player:3,cpu:3},shuffleAnim:null,turnSide:null};}
+
+async function beginGame(){
+  showScreen("gameScreen");
+  S=freshState(); LOGHTML=""; INPUT={}; paintLog();
+  let deck=[]; DECK_TYPES.forEach(t=>{for(let i=0;i<4;i++)deck.push(t);}); deck.push("Joker");
+  shuffle(deck);
+  deck.forEach((c,i)=>{(i%2===0?S.player:S.cpu).push(c);});
+  log(`<span class="sys">49枚の魔導カードが闇の中で切り混ぜられた。</span>`);
+  collapseAuto(S.player); collapseAuto(S.cpu);
+  log(`<span class="sys">初めから揃っていた対の魔法が、音もなく墓地へ沈んだ。</span>`);
+  S.current=Math.random()<0.5?"player":"cpu";
+  log(`先手は ${who(S.current)}。<span class="sys">対局、開始。</span>`);
+  sync(); await wait(600);
+  gameLoop();
+}
+function startCpu(diff){ MODE="cpu"; DIFF=diff; ROLE="host"; VIEW="player"; beginGame(); }
+
+/* =========================================================
+   オンライン（PeerJS ルームコード方式）
+========================================================= */
+function randCode(){const c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<5;i++)s+=c[rand(c.length)];return s;}
+const PEER_PREFIX="jwmagic-";
+
+function guestOnData(m){
+  if(m.t==="snap") applySnapshot(m);
+  else if(m.t==="req") handleGuestRequest(m);
+  else if(m.t==="over"){ S.over=true; showResult(m.winnerSide,m.rt); }
+}
+async function handleGuestRequest(m){
+  if(m.kind==="draw") setHint(S && S.revealFor===meSide()?"開示中：相手の手札が見えている。1枚選んで引け。":"相手のカードを1枚選んで引け。");
+  if(m.kind==="discard") setHint("✦ 光る2枚をクリックして墓地へ送れ。");
+  const val=await humanDecide(m.kind,meSide(),m.opts||{});
+  setHint("");
+  try{CONN.send({t:"resp",id:m.id,val});}catch(e){}
+}
+function hostOnData(m){
+  if(m.t==="resp"&&PENDING[m.id]){const r=PENDING[m.id];delete PENDING[m.id];r(m.val);}
+  else if(m.t==="shuffle"){ doShuffle("cpu"); }   // guest（＝cpu側）が手札シャッフル
+}
+
+function ensurePeerLib(){ if(typeof Peer==="undefined"){ $("netStatus").innerHTML='<span style="color:var(--danger)">ネットに繋がらず接続ライブラリを読み込めませんでした。オンラインにはインターネット接続が必要です。</span>'; return false;} return true; }
+
+function createRoom(){
+  if(!ensurePeerLib())return;
+  const code=randCode();
+  $("createArea").style.display="block"; $("joinArea").style.display="none";
+  $("roomCode").textContent=code;
+  $("netStatus").textContent="部屋を開いています…";
+  PEER=new Peer(PEER_PREFIX+code,{debug:1});
+  PEER.on("open",()=>{ $("netStatus").textContent="相手の入室を待っています…"; });
+  PEER.on("error",e=>{ $("netStatus").innerHTML='<span style="color:var(--danger)">接続エラー：'+(e.type||e)+'。コードを再発行してください。</span>'; });
+  PEER.on("connection",c=>{
+    CONN=c;
+    c.on("open",()=>{ CONNECTED=true; c.on("data",hostOnData);
+      $("netStatus").textContent="接続完了！対局を始めます。";
+      MODE="online"; ROLE="host"; VIEW="player";
+      setTimeout(beginGame,400);
+    });
+    c.on("close",onDisconnect); c.on("error",()=>{});
+  });
+}
+function joinRoom(){
+  if(!ensurePeerLib())return;
+  const code=($("joinInput").value||"").trim().toUpperCase();
+  if(code.length<4){ $("netStatus").innerHTML='<span style="color:var(--danger)">コードを入力してください。</span>'; return; }
+  $("netStatus").textContent="接続中…";
+  PEER=new Peer({debug:1});
+  PEER.on("open",()=>{
+    CONN=PEER.connect(PEER_PREFIX+code,{reliable:true});
+    CONN.on("open",()=>{ CONNECTED=true;
+      MODE="online"; ROLE="guest"; VIEW="cpu";
+      CONN.on("data",guestOnData);
+      $("netStatus").textContent="接続完了！親の開始を待っています…";
+      showScreen("gameScreen"); setTurn("相手（親）の準備を待っています…","");
+    });
+    CONN.on("close",onDisconnect);
+    CONN.on("error",()=>{ $("netStatus").innerHTML='<span style="color:var(--danger)">その部屋に接続できませんでした。コードを確認してください。</span>'; });
+  });
+  PEER.on("error",e=>{ $("netStatus").innerHTML='<span style="color:var(--danger)">接続エラー：'+(e.type||e)+'</span>'; });
+}
+function onDisconnect(){
+  stopTurnTimer();
+  if(S&&!S.over){
+    INPUT={};
+    openModal(`<h2>接続が切れました</h2><p>対戦相手との接続が失われました。</p>
+      <div class="controls"><button class="btn" id="toTitle3">🏰 タイトルへ</button></div>`);
+    $("toTitle3").onclick=()=>{closeModal();backToTitle();};
+  }
+}
+function cleanupPeer(){ try{if(CONN)CONN.close();}catch(e){} try{if(PEER)PEER.destroy();}catch(e){} CONN=null;PEER=null;CONNECTED=false;PENDING={}; }
+
+/* =========================================================
+   ルール
+========================================================= */
+function showRules(){
+  const g={attack:[],defense:[],special:[],reverse:[],joker:[]};
+  for(const k in CARDS) g[CARDS[k].cat].push(k);
+  const sec=(title,color,keys)=>`<h3 style="color:${color}">${title}</h3>
+    <ul style="margin:4px 0 0;padding-left:2px;list-style:none">${keys.map(k=>`<li style="margin-bottom:6px">
+      <span style="font-size:15px">${CARDS[k].icon}</span> <b style="color:${color}">${CARDS[k].jp}</b>
+      <span style="color:var(--ash)">(${k})</span><br><span style="font-size:12px">${CARDS[k].desc}</span></li>`).join("")}</ul>`;
+  openModal(`<h2>📜 遊び方と魔法の理</h2>
+    <p><b>ババ抜き</b>を礎とした闇の対局。揃えたカードは固有の<b style="color:var(--violet-glow)">魔法</b>を放つ。</p>
+    <ul style="padding-left:18px">
+      <li>自分の手番に、相手の手札から<b>1枚を引く</b>（相手のカードをクリック）。</li>
+      <li>同じ名前が<b>2枚揃うと金色に光る</b> ― <b>クリックして墓地へ送る</b>と、その魔法が発動する。</li>
+      <li>最後まで<b style="color:var(--danger)">道化師（Joker）</b>を抱えた者が敗北する。</li>
+    </ul>
+    ${sec("攻撃魔法","#ff6b81",g.attack)}${sec("防御魔法","#6bd3ff",g.defense)}
+    ${sec("特殊魔法","#b48bff",g.special)}${sec("逆転魔法","#e9c46a",g.reverse)}${sec("道化師","#ff3b5c",g.joker)}
+    <div class="controls"><button class="btn crimson" id="rc">閉じる</button></div>`);
+  $("rc").onclick=closeModal;
+}
+
+function backToTitle(){
+  stopTurnTimer(); cleanupPeer(); S=null; INPUT={};
+  ["cpuPanel","onlinePanel"].forEach(x=>$(x).classList.remove("show"));
+  $("createArea").style.display="none"; $("joinArea").style.display="none"; $("netStatus").textContent="";
+  $("joinInput").value=""; $("roomCode").textContent="------";
+  showScreen("titleScreen");
+}
+
+/* =========================================================
+   イベント配線
+========================================================= */
+$("mBtnCpu").onclick=()=>{$("onlinePanel").classList.remove("show");$("cpuPanel").classList.toggle("show");};
+$("mBtnOnline").onclick=()=>{$("cpuPanel").classList.remove("show");$("onlinePanel").classList.toggle("show");};
+$("mBtnRules").onclick=showRules;
+document.querySelectorAll("#cpuPanel [data-diff]").forEach(b=>b.onclick=()=>startCpu(b.dataset.diff));
+$("btnCreate").onclick=createRoom;
+$("btnJoin").onclick=()=>{$("joinArea").style.display="block";$("createArea").style.display="none";$("netStatus").textContent="";};
+$("btnConnect").onclick=joinRoom;
+$("btnCopy").onclick=()=>{const t=$("roomCode").textContent;navigator.clipboard&&navigator.clipboard.writeText(t);$("netStatus").textContent="コードをコピーしました：" + t;};
+$("joinInput").addEventListener("keydown",e=>{if(e.key==="Enter")joinRoom();});
+$("shuffleBtn").onclick=requestShuffle;
+$("rulesBtn").onclick=showRules;
+$("titleBtn").onclick=backToTitle;
+</script>
+</body>
+</html>
