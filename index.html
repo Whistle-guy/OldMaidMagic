@@ -32,7 +32,10 @@
   /* きめ細かなグレイン（重厚な質感） */
   body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
-  .card{-webkit-touch-callout:none;}
+  /* 長押しで文字が選択・コピーされないように（スマホ対策） */
+  .card,.card *,.turnbanner,.turnbanner *,.cinema,.cinema *,.turn-indicator,.statusbar,.zhead{
+    -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+    -webkit-touch-callout:none;}
   .fog{position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;mix-blend-mode:screen;
     background:radial-gradient(600px 300px at 20% 30%, rgba(123,47,247,.10), transparent 70%),
       radial-gradient(700px 350px at 80% 60%, rgba(192,20,47,.10), transparent 70%);
@@ -590,7 +593,7 @@ function humanUI(kind,opts){
   if(kind==="fireTarget") return chooseCardModal("🔥 炎 ― 燃やす種類を選べ","敵の手札から燃やすカードを1種類選択。",
       opts.candidates.map(n=>({name:n,val:n})),false);
   if(kind==="thiefTarget") return chooseCardModal("🗡 盗み ― 奪う位置を選べ","中身は伏せられている。位置だけを頼りに1枚を選んで奪う。",
-      opts.candidates.map(c=>({name:c.name,val:c.idx})),!opts.revealed);
+      opts.candidates.map(c=>({name:c.name,val:c.idx})),true);   // 盗みは常に中身を隠す
   if(kind==="declareNum") return askNumber("⌛ 宣言 ― 終焉を予言せよ","あと何ターンで試合が終わるかを宣言する。的中すればJokerを抱えていても勝利する。");
 }
 function chooseCardModal(title,sub,items,hide){
@@ -635,11 +638,15 @@ function aiDecide(kind,side,opts){
     return opts.candidates[0];
   }
   if(kind==="thiefTarget"){
-    const mySet=new Set(my);
-    if(DIFF!=="easy"){const pc=opts.candidates.find(c=>mySet.has(c.name)); if(pc) return pc.idx;}
+    const cand=opts.candidates, mySet=new Set(my);
+    const safe=cand.filter(c=>c.name!=="Joker" && !IMMUNE.includes(c.name)); // 奪って得なカードのみ
+    if(DIFF!=="easy"){const pc=safe.find(c=>mySet.has(c.name)); if(pc) return pc.idx;} // ペア完成
     const order=["Wind","Rotate","Thief","Fire","Road_to_lose","Double"];
-    for(const t of order){const f=opts.candidates.find(c=>c.name===t); if(f) return f.idx;}
-    return pick(opts.candidates.map(c=>c.idx));
+    for(const t of order){const f=safe.find(c=>c.name===t); if(f) return f.idx;}
+    if(safe.length) return pick(safe.map(c=>c.idx));
+    const immune=cand.filter(c=>IMMUNE.includes(c.name)); // 狙えるものが無ければ防御札（無害）。Jokerは避ける
+    if(immune.length) return pick(immune.map(c=>c.idx));
+    return pick(cand.map(c=>c.idx));
   }
   if(kind==="declareNum"){
     const total=S.player.length+S.cpu.length;
@@ -876,9 +883,14 @@ async function activateEffect(card,side){
       log(`　🌪 ${who(side)}の風が<span class="g">${jp(nm)}</span>を墓地へ飛ばした。${ex}`);break;
     }
     case "Thief":{
-      const st=tH.map((c,i)=>({name:c,idx:i})).filter(o=>!IMMUNE.includes(o.name));
+      const st=tH.map((c,i)=>({name:c,idx:i}));   // 相手の手札すべてを選択可能に
       if(!st.length){log(`　${who(side)}の<span class="g">盗み</span>は空を切った。`);break;}
       const idx=await decide(side,"thiefTarget",{candidates:st,revealed:(S.revealFor===side)});
+      const target=tH[idx];
+      if(IMMUNE.includes(target)){   // 防御魔法（水・守護者）を選ぶと何も起こらない
+        log(`　🛡 ${who(side)}は<span class="g">${jp(target)}</span>を狙ったが、守りに阻まれ何も起こらなかった。`);
+        break;
+      }
       const stolen=tH.splice(idx,1)[0]; aH.push(stolen);
       log(`　🗡 ${who(side)}が<span class="g">${jp(stolen)}</span>を奪い取った。`);
       collapseAuto(aH);break;
