@@ -369,6 +369,7 @@
     <div class="card-hint">
       同じ名前のカードが2枚揃うと、その魔法が発動する。最後まで<b style="color:var(--danger)">道化師（Joker）</b>を抱えた者が闇に呑まれる ―
     </div>
+    <div id="verTag" style="margin-top:16px;color:rgba(138,127,149,.55);font-size:11px;letter-spacing:.2em;"></div>
   </div>
 
   <!-- ================= ゲーム画面 ================= -->
@@ -462,6 +463,7 @@ let PENDING={};              // reqId -> resolve （host: リモート応答待�
 let REQSEQ=0;
 let PEER=null, CONN=null, CONNECTED=false;
 let SHUFFLE_LOCK=false;       // シャッフル連打防止
+let REMATCH={me:false,them:false};   // オンライン再戦の合図
 
 /* ===== ユーティリティ ===== */
 const $=id=>document.getElementById(id);
@@ -1029,12 +1031,40 @@ function showResult(winnerSide,rt){
     openModal(`<div class="result-big ${myWin?'result-win':'result-lose'}">${myWin?'VICTORY':'DEFEAT'}</div>
       <p style="text-align:center">${rt}</p>
       <p style="text-align:center;color:var(--ash)">経過ターン：<b style="color:var(--gold)">${(S.turn-1)}</b></p>
+      <div id="rematchStatus" style="text-align:center;color:var(--gold);min-height:20px;margin:6px 0;font-size:13px;"></div>
       <div class="controls">
         ${MODE==="cpu"?'<button class="btn crimson" id="againBtn">🔄 再び挑む</button>':''}
+        ${MODE==="online"?'<button class="btn crimson" id="rematchBtn">🔄 もう一度戦う</button>':''}
         <button class="btn" id="toTitle2">🏰 タイトルへ</button></div>`);
     const ab=$("againBtn"); if(ab) ab.onclick=()=>{closeModal();startCpu(DIFF);};
+    const rb=$("rematchBtn"); if(rb) rb.onclick=requestRematch;
     $("toTitle2").onclick=()=>{closeModal();backToTitle();};
+    if(MODE==="online") updateRematchStatus();   // すでに相手が希望済みなら反映
   },700);
+}
+
+/* ===== オンライン再戦（両者が合図したら再戦） ===== */
+function requestRematch(){
+  if(REMATCH.me) return;
+  REMATCH.me=true;
+  try{ if(CONN) CONN.send({t:"rematch"}); }catch(e){}
+  const rb=$("rematchBtn"); if(rb){ rb.disabled=true; rb.textContent="✓ 準備完了"; }
+  updateRematchStatus();
+  tryStartRematch();
+}
+function onRematchSignal(){ REMATCH.them=true; updateRematchStatus(); tryStartRematch(); }
+function updateRematchStatus(){
+  const el=$("rematchStatus"); if(!el) return;
+  if(REMATCH.me&&REMATCH.them) el.textContent="再戦します…";
+  else if(REMATCH.me) el.textContent="相手の「もう一度」を待っています…";
+  else if(REMATCH.them) el.innerHTML='<span style="color:var(--violet-glow)">相手はもう一度戦いたがっています！「もう一度戦う」を押すと再戦</span>';
+  else el.textContent="";
+}
+function tryStartRematch(){
+  if(!(REMATCH.me&&REMATCH.them)) return;
+  REMATCH={me:false,them:false};
+  closeModal();
+  if(ROLE==="host") beginGame();   // ホストが再配布→スナップショットで両者に反映
 }
 
 /* =========================================================
@@ -1046,6 +1076,7 @@ function freshState(){return{player:[],cpu:[],graveyard:[],turn:1,current:"playe
 
 async function beginGame(){
   showScreen("gameScreen");
+  REMATCH={me:false,them:false};
   S=freshState(); LOGHTML=""; INPUT={}; paintLog();
   let deck=[]; DECK_TYPES.forEach(t=>{for(let i=0;i<4;i++)deck.push(t);}); deck.push("Joker");
   shuffle(deck);
@@ -1067,9 +1098,14 @@ function randCode(){const c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";for(let 
 const PEER_PREFIX="jwmagic-";
 
 function guestOnData(m){
-  if(m.t==="snap") applySnapshot(m);
+  if(m.t==="snap"){
+    const wasOver = S && S.over;
+    applySnapshot(m);
+    if(wasOver && !m.over){ REMATCH={me:false,them:false}; closeModal(); showScreen("gameScreen"); } // 再戦開始
+  }
   else if(m.t==="req") handleGuestRequest(m);
   else if(m.t==="over"){ S.over=true; showResult(m.winnerSide,m.rt); }
+  else if(m.t==="rematch"){ onRematchSignal(); }
 }
 async function handleGuestRequest(m){
   if(m.kind==="draw") setHint(S && S.revealFor===meSide()?"開示中：相手の手札が見えている。1枚選んで引け。":"相手のカードを1枚選んで引け。");
@@ -1081,6 +1117,7 @@ async function handleGuestRequest(m){
 function hostOnData(m){
   if(m.t==="resp"&&PENDING[m.id]){const r=PENDING[m.id];delete PENDING[m.id];r(m.val);}
   else if(m.t==="shuffle"){ doShuffle("cpu"); }   // guest（＝cpu側）が手札シャッフル
+  else if(m.t==="rematch"){ onRematchSignal(); }
 }
 
 function ensurePeerLib(){ if(typeof Peer==="undefined"){ $("netStatus").innerHTML='<span style="color:var(--danger)">ネットに繋がらず接続ライブラリを読み込めませんでした。オンラインにはインターネット接続が必要です。</span>'; return false;} return true; }
@@ -1158,7 +1195,7 @@ function showRules(){
 }
 
 function backToTitle(){
-  stopTurnTimer(); cleanupPeer(); S=null; INPUT={};
+  stopTurnTimer(); cleanupPeer(); S=null; INPUT={}; REMATCH={me:false,them:false};
   ["cpuPanel","onlinePanel"].forEach(x=>$(x).classList.remove("show"));
   $("createArea").style.display="none"; $("joinArea").style.display="none"; $("netStatus").textContent="";
   $("joinInput").value=""; $("roomCode").textContent="------";
@@ -1180,6 +1217,11 @@ $("joinInput").addEventListener("keydown",e=>{if(e.key==="Enter")joinRoom();});
 $("shuffleBtn").onclick=requestShuffle;
 $("rulesBtn").onclick=showRules;
 $("titleBtn").onclick=backToTitle;
+
+/* ビルド番号（キャッシュ確認用）。更新のたびに上げる */
+const BUILD="2026.07.16-a";
+$("verTag").textContent="build "+BUILD;
+console.log("Joker with Magic build "+BUILD);
 </script>
 </body>
 </html>
